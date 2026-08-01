@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Spatial Database Engine
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: dartn_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: dartn_db
+      POSTGRES_USER: dartn_admin
+      POSTGRES_PASSWORD: dartn_secret_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Database Admin UI Tool
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: dartn_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@dartn.tn
+      PGADMIN_DEFAULT_PASSWORD: adminpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
