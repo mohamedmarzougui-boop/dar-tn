@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
+import listingRoutes from './routes/listingRoutes.js';
 
 dotenv.config();
 
@@ -19,8 +20,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Dar-TN API', timestamp: new Date() });
 });
 
-// Mounting Auth Routes
+// Mounting API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/listings', listingRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
