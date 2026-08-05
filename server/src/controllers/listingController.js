@@ -1,5 +1,29 @@
 import { query } from '../config/db.js';
 
+// Helper function to call Python AI Microservice on Port 8000
+const fetchAIEstimate = async (listing) => {
+  try {
+    const response = await fetch('http://localhost:8000/api/ai/estimate-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: listing.city,
+        delegation: listing.delegation,
+        property_type: listing.property_type,
+        price_tnd: parseFloat(listing.price_tnd),
+        has_climatisation: listing.has_climatisation,
+        is_furnished: listing.is_furnished
+      })
+    });
+
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.warn('⚠️ AI Engine offline or unreachable, returning standard listing without badge.');
+    return null;
+  }
+};
+
 // 1. Fetch Listings within Map Bounding Box (Lat/Lng viewport)
 export const getMapListings = async (req, res) => {
   try {
@@ -53,7 +77,7 @@ export const getMapListings = async (req, res) => {
   }
 };
 
-// 2. Fetch Single Listing Details by ID
+// 2. Fetch Single Listing Details by ID (With AI Price Valuation Integration)
 export const getListingById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -79,7 +103,16 @@ export const getListingById = async (req, res) => {
       return res.status(404).json({ error: 'Listing not found.' });
     }
 
-    res.json({ listing: result.rows[0] });
+    const listing = result.rows[0];
+
+    // Query Python AI Price Valuation Service
+    const aiValuation = await fetchAIEstimate(listing);
+
+    res.json({
+      listing,
+      ai_valuation: aiValuation || { status: 'UNAVAILABLE', badge_label: 'Price valuation pending' }
+    });
+
   } catch (error) {
     console.error('Get listing by ID error:', error);
     res.status(500).json({ error: 'Failed to retrieve listing details.' });
