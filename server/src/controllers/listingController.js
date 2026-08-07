@@ -3,23 +3,29 @@ import { query } from '../config/db.js';
 // Helper function to call Python AI Microservice on Port 8000
 const fetchAIEstimate = async (listing) => {
   try {
-    const response = await fetch('http://localhost:8000/api/ai/estimate-price', {
+    // FIX 1: Use 127.0.0.1 instead of localhost for Node 18+ stability
+    const response = await fetch('http://127.0.0.1:8000/api/ai/estimate-price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        city: listing.city,
-        delegation: listing.delegation,
-        property_type: listing.property_type,
-        price_tnd: parseFloat(listing.price_tnd),
-        has_climatisation: listing.has_climatisation,
-        is_furnished: listing.is_furnished
+        city: listing.city || 'Tunis',
+        delegation: listing.delegation || 'Tunis',
+        property_type: listing.property_type || 'S_PLUS_1',
+        // FIX 2: Parse string from DB to float & cast booleans so FastAPI accepts it
+        price_tnd: parseFloat(listing.price_tnd) || 0,
+        has_climatisation: Boolean(listing.has_climatisation),
+        is_furnished: Boolean(listing.is_furnished)
       })
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`⚠️ AI Engine returned HTTP ${response.status}`);
+      return null;
+    }
+    
     return await response.json();
   } catch (error) {
-    console.warn('⚠️ AI Engine offline or unreachable, returning standard listing without badge.');
+    console.warn('⚠️ AI Engine offline or unreachable:', error.message);
     return null;
   }
 };
@@ -110,7 +116,7 @@ export const getListingById = async (req, res) => {
 
     res.json({
       listing,
-      ai_valuation: aiValuation || { status: 'UNAVAILABLE', badge_label: 'Price valuation pending' }
+      ai_valuation: aiValuation || { status: 'UNAVAILABLE', badge_label: '✨ Price valuation pending' }
     });
 
   } catch (error) {
