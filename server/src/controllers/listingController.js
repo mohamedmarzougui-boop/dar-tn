@@ -179,3 +179,26 @@ export const createListing = async (req, res) => {
     res.status(500).json({ error: 'Failed to create listing.' });
   }
 };
+
+// Best-effort field extraction from pasted listing text (e.g. copied from a
+// Facebook post), so a user can prefill the create-listing form instead of
+// typing everything by hand. Nothing here gets published automatically - the
+// client still has to submit the reviewed/edited fields through createListing.
+export const parseListingText = async (req, res) => {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/api/ai/parse-listing-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: req.body.text }),
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Text parsing service returned an error.' });
+    }
+
+    res.json(await response.json());
+  } catch (error) {
+    console.error('Parse listing text error:', error);
+    res.status(502).json({ error: 'Text parsing service is unavailable.' });
+  }
+};

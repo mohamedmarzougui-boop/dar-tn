@@ -29,6 +29,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   String _targetTenant = _targetTenants.first;
   String? _selectedCity;
   String? _selectedDelegation;
+
+  // Bumped whenever paste-and-parse programmatically changes a dropdown's
+  // value, so the dropdowns below get a new key and rebuild fresh - their
+  // FormFieldState otherwise only reads `initialValue` on first build and
+  // ignores later external changes, which would silently desync the
+  // displayed value from what's actually selected.
+  int _formGeneration = 0;
   bool _hasClimatisation = false;
   bool _hasChauffageCentral = false;
   bool _hasWifi = false;
@@ -83,6 +90,82 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     }
   }
 
+  Future<void> _openPasteDialog() async {
+    final pasteController = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Paste listing text'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Paste a post from a Facebook group or elsewhere. We\'ll try to '
+              'fill in the fields below - review everything before publishing.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pasteController,
+              maxLines: 6,
+              decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Paste text here...'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, pasteController.text),
+            child: const Text('Parse'),
+          ),
+        ],
+      ),
+    );
+
+    if (text == null || text.trim().isEmpty || !mounted) return;
+
+    try {
+      final fields = await ApiService.parseListingText(text);
+      setState(() {
+        if (fields['title'] != null) _titleController.text = fields['title'];
+        if (fields['description'] != null) _descriptionController.text = fields['description'];
+        if (fields['price_tnd'] != null) _priceController.text = fields['price_tnd'].toString();
+        if (fields['property_type'] != null && _propertyTypes.contains(fields['property_type'])) {
+          _propertyType = fields['property_type'];
+        }
+        if (fields['target_tenant'] != null && _targetTenants.contains(fields['target_tenant'])) {
+          _targetTenant = fields['target_tenant'];
+        }
+        if (fields['city'] != null && tunisiaLocations.containsKey(fields['city'])) {
+          _selectedCity = fields['city'];
+          if (fields['delegation'] != null && tunisiaLocations[_selectedCity]!.contains(fields['delegation'])) {
+            _selectedDelegation = fields['delegation'];
+          }
+        }
+        _hasClimatisation = fields['has_climatisation'] ?? _hasClimatisation;
+        _hasChauffageCentral = fields['has_chauffage_central'] ?? _hasChauffageCentral;
+        _hasWifi = fields['has_wifi'] ?? _hasWifi;
+        _hasElevator = fields['has_elevator'] ?? _hasElevator;
+        _isFurnished = fields['is_furnished'] ?? _isFurnished;
+        _formGeneration++;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fields prefilled - please review before publishing.')),
+        );
+      }
+    } on NotLoggedInException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,6 +173,13 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
         title: const Text('Create Listing'),
         backgroundColor: const Color(0xFF0D9488),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.content_paste_go),
+            tooltip: 'Paste from text',
+            onPressed: _openPasteDialog,
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -133,6 +223,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: ValueKey('propertyType-$_formGeneration'),
               initialValue: _propertyType,
               decoration: const InputDecoration(labelText: 'Property Type', border: OutlineInputBorder()),
               items: _propertyTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
@@ -140,6 +231,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: ValueKey('targetTenant-$_formGeneration'),
               initialValue: _targetTenant,
               decoration: const InputDecoration(labelText: 'Target Tenant', border: OutlineInputBorder()),
               items: _targetTenants.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
@@ -178,6 +270,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
+                    key: ValueKey('city-$_formGeneration'),
                     initialValue: _selectedCity,
                     decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()),
                     isExpanded: true,
@@ -192,6 +285,11 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
+                    // Keying on _selectedCity too resets this field whenever the
+                    // city changes (whether from direct selection or paste-parse) -
+                    // otherwise it could keep showing a delegation that belongs to
+                    // whatever city was previously selected.
+                    key: ValueKey('delegation-$_selectedCity-$_formGeneration'),
                     initialValue: _selectedDelegation,
                     decoration: const InputDecoration(labelText: 'Delegation', border: OutlineInputBorder()),
                     isExpanded: true,

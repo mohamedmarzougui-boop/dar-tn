@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
+from text_parser import parse_listing_text
+
 load_dotenv()
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
@@ -95,6 +97,15 @@ def fetch_comparables(cursor, city: str, property_type: PropertyType, delegation
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "Dar-TN AI Price Estimation Service"}
+
+
+class ParseTextRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/ai/parse-listing-text")
+def parse_listing_text_endpoint(data: ParseTextRequest):
+    return parse_listing_text(data.text)
 
 
 @app.post("/api/ai/estimate-price")

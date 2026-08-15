@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param, query as queryValidator } from 'express-validator';
 import rateLimit from 'express-rate-limit';
-import { getMapListings, getListingById, createListing } from '../controllers/listingController.js';
+import { getMapListings, getListingById, createListing, parseListingText } from '../controllers/listingController.js';
 import { validateRequest } from '../middleware/validateMiddleware.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
@@ -50,8 +50,24 @@ const createListingValidation = [
   body('longitude').isFloat({ min: -180, max: 180 }).withMessage('A valid longitude is required'),
 ];
 
+const parseTextLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' },
+});
+
 router.get('/map', boundingBoxValidation, validateRequest, getMapListings);
 router.get('/:id', param('id').isUUID(), validateRequest, getListingById);
 router.post('/', authenticateToken, createListingLimiter, createListingValidation, validateRequest, createListing);
+router.post(
+  '/parse-text',
+  authenticateToken,
+  parseTextLimiter,
+  body('text').trim().notEmpty().isLength({ max: 5000 }).withMessage('text is required (max 5000 characters)'),
+  validateRequest,
+  parseListingText
+);
 
 export default router;

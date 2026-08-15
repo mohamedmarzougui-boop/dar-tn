@@ -1,0 +1,4 @@
+title,description,price_tnd,deposit_tnd,property_type,target_tenant,bedrooms,bathrooms,has_climatisation,has_chauffage_central,has_wifi,has_elevator,is_furnished,surface_m2,city,delegation,address_text,latitude,longitude
+Appartement S+2 moderne,"Bel appartement lumineux, proche des commodites",650,1300,S_PLUS_2,ANY,2,1,true,false,true,true,false,75,Tunis,Les Berges du Lac,,,
+Studio meuble pour etudiant,"Studio compact, ideal pour un etudiant",380,380,STUDIO,STUDENT,1,1,false,false,true,false,true,25,Sfax,Sfax Ville,,,
+Chambre en colocation,"Chambre individuelle dans coloc de 3",280,280,COLOCATION,GIRLS_ONLY,1,1,true,false,true,false,true,,Sousse,Sousse Ville,,,

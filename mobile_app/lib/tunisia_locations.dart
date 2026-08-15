@@ -7,6 +7,11 @@ const Map<String, List<String>> tunisiaLocations = {
     'El Kabaria', 'El Kram', 'El Menzah', 'El Omrane', 'El Omrane Supérieur',
     'El Ouardia', 'Essijoumi', 'Ettahrir', 'Ezzouhour', 'Hraïria',
     'La Goulette', 'La Marsa', 'Le Bardo', 'Médina', 'Sidi El Béchir', 'Sidi Hassine',
+    // Well-known modern neighborhoods, not official delegation names in their
+    // own right (they fall under El Kram administratively) but commonly used
+    // by name for real estate - listed directly per this dataset's flat
+    // city -> area-name structure.
+    'Les Berges du Lac', 'Lac 2',
   ],
   'Ariana': [
     'Ariana Ville', 'Ettadhamen', 'Kalaat Al-Andalous', 'La Soukra', 'Mnihla', 'Raoued', 'Sidi Thabet',

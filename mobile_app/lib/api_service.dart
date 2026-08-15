@@ -155,6 +155,31 @@ class ApiService {
       throw Exception(_extractErrorMessage(response.body) ?? 'Failed to create listing');
     }
   }
+
+  // Best-effort field extraction from pasted text (e.g. a Facebook post) to
+  // prefill the create-listing form. The caller must still let the user
+  // review/edit every field before submitting via createListing.
+  static Future<Map<String, dynamic>> parseListingText(String text) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) {
+      throw NotLoggedInException();
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/listings/parse-text'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({'text': text}),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Failed to parse text');
+    }
+  }
 }
 
 // Thrown by unlockContact when there's no stored token, so the caller can
