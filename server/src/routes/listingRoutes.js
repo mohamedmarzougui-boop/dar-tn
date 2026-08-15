@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { query as queryValidator } from 'express-validator';
-import { getMapListings } from '../controllers/listingController.js';
+import { param, query as queryValidator } from 'express-validator';
+import { getMapListings, getListingById } from '../controllers/listingController.js';
 import { validateRequest } from '../middleware/validateMiddleware.js';
 
 const router = Router();
@@ -16,5 +16,6 @@ const boundingBoxValidation = [
 ];
 
 router.get('/map', boundingBoxValidation, validateRequest, getMapListings);
+router.get('/:id', param('id').isUUID(), validateRequest, getListingById);
 
 export default router;

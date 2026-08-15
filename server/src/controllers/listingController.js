@@ -1,5 +1,37 @@
 import { query } from '../config/db.js';
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+
+// Ask the Python AI microservice for a fair-price valuation. The map/listing
+// experience must keep working even if that service is down, so failures
+// degrade to `null` here rather than failing the whole request.
+const fetchAIEstimate = async (listing) => {
+  try {
+    const response = await fetch(`${AI_SERVICE_URL}/api/ai/estimate-price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: listing.city,
+        delegation: listing.delegation,
+        property_type: listing.property_type,
+        price_tnd: parseFloat(listing.price_tnd),
+        has_climatisation: Boolean(listing.has_climatisation),
+        is_furnished: Boolean(listing.is_furnished),
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`AI engine returned HTTP ${response.status}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.warn('AI engine offline or unreachable:', error.message);
+    return null;
+  }
+};
+
 // Fetch listings within a map viewport (bounding box), with optional filters.
 // IMPORTANT: the bounding box is compared against `location` as geography
 // (`::geography` on the envelope, not `::geometry` on the column) so Postgres
@@ -50,5 +82,47 @@ export const getMapListings = async (req, res) => {
   } catch (error) {
     console.error('Get map listings error:', error);
     res.status(500).json({ error: 'Failed to retrieve listings for map.' });
+  }
+};
+
+// Fetch a single listing for the map bottom sheet, merged with an AI fair-price
+// valuation. Deliberately does NOT select the owner's phone number - that stays
+// behind the points-unlock paywall (Phase 6).
+export const getListingById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const sql = `
+      SELECT
+        l.id, l.title, l.description, l.price_tnd, l.deposit_tnd,
+        l.property_type, l.target_tenant, l.bedrooms, l.bathrooms,
+        l.has_climatisation, l.has_chauffage_central, l.has_wifi,
+        l.has_elevator, l.is_furnished, l.surface_m2, l.city, l.delegation,
+        ST_Y(l.location::geometry) AS latitude,
+        ST_X(l.location::geometry) AS longitude,
+        l.status, l.is_verified_by_agency, l.created_at,
+        u.full_name AS owner_name
+      FROM listings l
+      LEFT JOIN users u ON l.owner_id = u.id
+      WHERE l.id = $1;
+    `;
+
+    const result = await query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const listing = result.rows[0];
+    const aiValuation = await fetchAIEstimate(listing);
+
+    res.json({
+      listing,
+      ai_valuation: aiValuation || { status: 'UNAVAILABLE', badge_label: '✨ Price valuation pending' },
+    });
+
+  } catch (error) {
+    console.error('Get listing by id error:', error);
+    res.status(500).json({ error: 'Failed to retrieve listing details.' });
   }
 };
