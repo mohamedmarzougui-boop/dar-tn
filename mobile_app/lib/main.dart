@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'api_service.dart';
+import 'auth_screens.dart';
 
 void main() {
   runApp(const DarTnApp());
@@ -34,11 +35,13 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   List<dynamic> _listings = [];
   bool _isLoading = true;
+  Map<String, dynamic>? _currentUser;
 
   @override
   void initState() {
     super.initState();
     _loadListings();
+    _loadCurrentUser();
   }
 
   Future<void> _loadListings() async {
@@ -48,6 +51,24 @@ class _MapScreenState extends State<MapScreen> {
       _listings = data;
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final user = await ApiService.fetchCurrentUser();
+    setState(() => _currentUser = user);
+  }
+
+  Future<void> _openAuth() async {
+    final loggedIn = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+    if (loggedIn == true) _loadCurrentUser();
+  }
+
+  Future<void> _logout() async {
+    await ApiService.logout();
+    setState(() => _currentUser = null);
   }
 
   void _showListingModal(String listingId) {
@@ -166,6 +187,26 @@ class _MapScreenState extends State<MapScreen> {
         backgroundColor: const Color(0xFF0D9488),
         foregroundColor: Colors.white,
         actions: [
+          if (_currentUser != null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.account_circle),
+              onSelected: (value) {
+                if (value == 'logout') _logout();
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Text('${_currentUser!['full_name']} · ${_currentUser!['points_balance']} pts'),
+                ),
+                const PopupMenuItem(value: 'logout', child: Text('Logout')),
+              ],
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'Login',
+              onPressed: _openAuth,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadListings,

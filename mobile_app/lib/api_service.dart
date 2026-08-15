@@ -1,8 +1,83 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   static const String baseUrl = 'http://127.0.0.1:5000/api';
+  static const _storage = FlutterSecureStorage();
+
+  // --- AUTHENTICATION ---
+
+  static Future<void> register(String phoneNumber, String fullName, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'phone_number': phoneNumber, 'full_name': fullName, 'password': password}),
+    );
+
+    if (response.statusCode == 201) {
+      final data = json.decode(response.body);
+      await _storage.write(key: 'jwt_token', value: data['token']);
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Registration failed');
+    }
+  }
+
+  static Future<void> login(String phoneNumber, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'phone_number': phoneNumber, 'password': password}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      await _storage.write(key: 'jwt_token', value: data['token']);
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Login failed');
+    }
+  }
+
+  static Future<void> logout() async {
+    await _storage.delete(key: 'jwt_token');
+  }
+
+  static Future<bool> isLoggedIn() async {
+    final token = await _storage.read(key: 'jwt_token');
+    return token != null;
+  }
+
+  static Future<Map<String, dynamic>?> fetchCurrentUser() async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) return null;
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['user'];
+    }
+    // Token expired/invalid - clear it so the UI stops treating us as logged in.
+    await _storage.delete(key: 'jwt_token');
+    return null;
+  }
+
+  // Express-validator errors come back as {errors: [{msg: ...}, ...]};
+  // plain server errors come back as {error: "..."}. Handle both shapes.
+  static String? _extractErrorMessage(String body) {
+    try {
+      final data = json.decode(body);
+      if (data['error'] != null) return data['error'];
+      if (data['errors'] is List && data['errors'].isNotEmpty) {
+        return data['errors'][0]['msg'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // --- LISTINGS & MAP ---
 
   static Future<List<dynamic>> fetchMapListings({
     double minLat = 34.0,
