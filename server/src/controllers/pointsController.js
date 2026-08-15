@@ -18,8 +18,14 @@ export const unlockContact = async (req, res) => {
 
   const client = await pool.connect();
   try {
+    // Scraped listings have no owner_id (no registered user to join
+    // against), so fall back to scraped_contact_phone in that case. This
+    // column is only ever selected here, never by the public listing/map
+    // endpoints - same paywall boundary as owner-based phone numbers.
     const listingResult = await client.query(
-      `SELECT l.owner_id, u.phone_number, u.full_name
+      `SELECT l.owner_id,
+              COALESCE(u.phone_number, l.scraped_contact_phone) AS phone_number,
+              COALESCE(u.full_name, 'Annonceur') AS full_name
        FROM listings l
        LEFT JOIN users u ON l.owner_id = u.id
        WHERE l.id = $1`,
@@ -30,8 +36,8 @@ export const unlockContact = async (req, res) => {
       return res.status(404).json({ error: 'Listing not found.' });
     }
 
-    const { owner_id, phone_number, full_name } = listingResult.rows[0];
-    if (!owner_id || !phone_number) {
+    const { phone_number, full_name } = listingResult.rows[0];
+    if (!phone_number) {
       return res.status(409).json({ error: 'This listing has no contact information available yet.' });
     }
     const contact = { phone_number, full_name };
