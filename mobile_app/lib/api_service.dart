@@ -180,6 +180,42 @@ class ApiService {
       throw Exception(_extractErrorMessage(response.body) ?? 'Failed to parse text');
     }
   }
+
+  // --- ADMIN MODERATION ---
+
+  static Future<List<dynamic>> fetchModerationQueue() async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) throw NotLoggedInException();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/listings'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['listings'];
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Failed to load moderation queue');
+    }
+  }
+
+  static Future<void> moderateListing(String listingId, String status) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) throw NotLoggedInException();
+
+    final response = await http.patch(
+      Uri.parse('$baseUrl/admin/listings/$listingId/status'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({'status': status}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Failed to moderate listing');
+    }
+  }
 }
 
 // Thrown by unlockContact when there's no stored token, so the caller can

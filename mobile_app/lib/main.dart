@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'api_service.dart';
 import 'auth_screens.dart';
 import 'create_listing_screen.dart';
+import 'admin_moderation_screen.dart';
 
 void main() {
   runApp(const DarTnApp());
@@ -401,6 +402,9 @@ class _MapScreenState extends State<MapScreen> {
               icon: const Icon(Icons.account_circle),
               onSelected: (value) {
                 if (value == 'logout') _logout();
+                if (value == 'moderation') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminModerationScreen()));
+                }
               },
               itemBuilder: (context) => [
                 PopupMenuItem(
@@ -409,6 +413,8 @@ class _MapScreenState extends State<MapScreen> {
                     '${_currentUser!['full_name']} · ${_currentUser!['points_balance']} pts',
                   ),
                 ),
+                if (_currentUser!['role'] == 'ADMIN')
+                  const PopupMenuItem(value: 'moderation', child: Text('Moderation Queue')),
                 const PopupMenuItem(value: 'logout', child: Text('Logout')),
               ],
             )

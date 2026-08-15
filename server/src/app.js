@@ -6,6 +6,7 @@ import listingRoutes from './routes/listingRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import pointsRoutes from './routes/pointsRoutes.js';
 import imageRoutes from './routes/imageRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/points', pointsRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

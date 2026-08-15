@@ -16,3 +16,14 @@ export const authenticateToken = (req, res, next) => {
     return res.status(403).json({ error: 'Invalid or expired token.' });
   }
 };
+
+// role is baked into the JWT at login/register time, so promoting someone to
+// ADMIN (currently a direct DB update - self-registration as ADMIN was
+// deliberately blocked in Phase 5) only takes effect once they get a fresh
+// token, i.e. after they log in again.
+export const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Admin access required.' });
+  }
+  next();
+};
