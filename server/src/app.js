@@ -2,10 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import authRoutes from './routes/authRoutes.js';
 import listingRoutes from './routes/listingRoutes.js';
-import pointsRoutes from './routes/pointsRoutes.js';
-import colocationRoutes from './routes/colocationRoutes.js';
 
 dotenv.config();
 
@@ -21,10 +18,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Mounting API Routes
-app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
-app.use('/api/points', pointsRoutes);
-app.use('/api/colocation', colocationRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
