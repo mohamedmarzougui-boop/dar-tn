@@ -1,6 +1,18 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:image_picker/image_picker.dart';
+
+// Fallback for the rare case XFile.mimeType is null. Matches exactly the
+// three types the server's upload endpoint accepts - anything else defaults
+// to jpeg rather than sending a type the server is guaranteed to reject.
+String _guessMimeType(String filename) {
+  final lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
+}
 
 class ApiService {
   static const String baseUrl = 'http://127.0.0.1:5000/api';
@@ -153,6 +165,37 @@ class ApiService {
       return json.decode(response.body)['listing'];
     } else {
       throw Exception(_extractErrorMessage(response.body) ?? 'Failed to create listing');
+    }
+  }
+
+  static Future<void> uploadListingImages(String listingId, List<XFile> images) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) {
+      throw NotLoggedInException();
+    }
+
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/listings/$listingId/images'))
+      ..headers['Authorization'] = 'Bearer $token';
+
+    for (final image in images) {
+      // XFile.readAsBytes works on every platform including web, unlike
+      // dart:io File which web doesn't have. Without an explicit contentType,
+      // MultipartFile.fromBytes falls back to guessing from the filename and
+      // defaults to application/octet-stream when that fails - which the
+      // server correctly rejects even for a perfectly valid image, since it
+      // only recognizes image/jpeg, image/png, image/webp.
+      request.files.add(http.MultipartFile.fromBytes(
+        'images',
+        await image.readAsBytes(),
+        filename: image.name,
+        contentType: MediaType.parse(image.mimeType ?? _guessMimeType(image.name)),
+      ));
+    }
+
+    final response = await request.send();
+    if (response.statusCode != 201) {
+      final body = await response.stream.bytesToString();
+      throw Exception(_extractErrorMessage(body) ?? 'Failed to upload images');
     }
   }
 

@@ -4,6 +4,9 @@ npm-debug.log
 .env
 .env.local
 
+# Uploaded user content
+server/uploads/
+
 # Python
 __pycache__/
 *.pyc

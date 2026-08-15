@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { query } from '../config/db.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
@@ -226,6 +227,59 @@ export const createListing = async (req, res) => {
   } catch (error) {
     console.error('Create listing error:', error);
     res.status(500).json({ error: 'Failed to create listing.' });
+  }
+};
+
+// Attaches uploaded images to a listing. Only the listing's owner may do
+// this - without this check, any authenticated user could attach arbitrary
+// images to someone else's listing. multer has already written the files to
+// disk by the time this runs, so on any rejection we delete them rather
+// than leaving orphaned files behind.
+export const uploadListingImages = async (req, res) => {
+  const files = req.files || [];
+
+  const cleanup = () => files.forEach((file) => fs.unlink(file.path, () => {}));
+
+  try {
+    const { id } = req.params;
+
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'At least one image file is required.' });
+    }
+
+    const listingResult = await query('SELECT owner_id FROM listings WHERE id = $1', [id]);
+    if (listingResult.rows.length === 0) {
+      cleanup();
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+    if (listingResult.rows[0].owner_id !== req.user.id) {
+      cleanup();
+      return res.status(403).json({ error: 'You can only add images to your own listings.' });
+    }
+
+    const countResult = await query('SELECT COUNT(*) FROM listing_images WHERE listing_id = $1', [id]);
+    const existingCount = parseInt(countResult.rows[0].count, 10);
+
+    const insertedIds = [];
+    for (const [index, file] of files.entries()) {
+      const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+      const result = await query(
+        `INSERT INTO listing_images (listing_id, image_url, is_primary, display_order)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [id, imageUrl, existingCount === 0 && index === 0, existingCount + index]
+      );
+      insertedIds.push(result.rows[0].id);
+    }
+
+    res.status(201).json({
+      message: 'Images uploaded successfully!',
+      images: insertedIds.map((imageId) => `${req.protocol}://${req.get('host')}/api/images/${imageId}`),
+    });
+
+  } catch (error) {
+    cleanup();
+    console.error('Upload listing images error:', error);
+    res.status(500).json({ error: 'Failed to upload images.' });
   }
 };
 

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { body, param, query as queryValidator } from 'express-validator';
 import rateLimit from 'express-rate-limit';
-import { getMapListings, getListingById, createListing, parseListingText } from '../controllers/listingController.js';
+import { getMapListings, getListingById, createListing, parseListingText, uploadListingImages } from '../controllers/listingController.js';
 import { validateRequest } from '../middleware/validateMiddleware.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
+import { uploadListingImages as uploadMiddleware } from '../middleware/uploadMiddleware.js';
 
 const router = Router();
 
@@ -68,6 +69,22 @@ router.post(
   body('text').trim().notEmpty().isLength({ max: 5000 }).withMessage('text is required (max 5000 characters)'),
   validateRequest,
   parseListingText
+);
+router.post(
+  '/:id/images',
+  authenticateToken,
+  param('id').isUUID(),
+  validateRequest,
+  // multer is callback-based; wrapping it lets a rejected file (wrong type,
+  // too large, too many) come back as a clean 400 instead of falling
+  // through to the generic 500 handler.
+  (req, res, next) => {
+    uploadMiddleware(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      next();
+    });
+  },
+  uploadListingImages
 );
 
 export default router;

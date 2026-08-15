@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'api_service.dart';
 import 'tunisia_locations.dart';
@@ -46,11 +48,38 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
   bool _isSubmitting = false;
   String? _errorMessage;
 
+  final List<XFile> _selectedImages = [];
+  final List<Uint8List> _selectedImageBytes = [];
+
+  Future<void> _pickImages() async {
+    final picked = await ImagePicker().pickMultiImage(limit: 10);
+    if (picked.isEmpty) return;
+    final bytes = await Future.wait(picked.map((f) => f.readAsBytes()));
+    setState(() {
+      _selectedImages.addAll(picked);
+      _selectedImageBytes.addAll(bytes);
+    });
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+      _selectedImageBytes.removeAt(index);
+    });
+  }
+
+  // Set once the listing itself is created, so that if photo upload fails
+  // and the user retries, we upload again instead of creating a second,
+  // duplicate listing.
+  String? _createdListingId;
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_selectedLocation == null) {
-      setState(() => _errorMessage = 'Tap the map to set the listing location.');
-      return;
+    if (_createdListingId == null) {
+      if (!_formKey.currentState!.validate()) return;
+      if (_selectedLocation == null) {
+        setState(() => _errorMessage = 'Tap the map to set the listing location.');
+        return;
+      }
     }
 
     setState(() {
@@ -59,26 +88,33 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
     });
 
     try {
-      await ApiService.createListing({
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
-        'price_tnd': double.parse(_priceController.text),
-        'deposit_tnd': _depositController.text.trim().isEmpty ? 0 : double.parse(_depositController.text),
-        'property_type': _propertyType,
-        'target_tenant': _targetTenant,
-        'bedrooms': int.tryParse(_bedroomsController.text) ?? 1,
-        'bathrooms': int.tryParse(_bathroomsController.text) ?? 1,
-        'has_climatisation': _hasClimatisation,
-        'has_chauffage_central': _hasChauffageCentral,
-        'has_wifi': _hasWifi,
-        'has_elevator': _hasElevator,
-        'is_furnished': _isFurnished,
-        'surface_m2': _surfaceController.text.trim().isEmpty ? null : int.tryParse(_surfaceController.text),
-        'city': _selectedCity,
-        'delegation': _selectedDelegation,
-        'latitude': _selectedLocation!.latitude,
-        'longitude': _selectedLocation!.longitude,
-      });
+      if (_createdListingId == null) {
+        final listing = await ApiService.createListing({
+          'title': _titleController.text.trim(),
+          'description': _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+          'price_tnd': double.parse(_priceController.text),
+          'deposit_tnd': _depositController.text.trim().isEmpty ? 0 : double.parse(_depositController.text),
+          'property_type': _propertyType,
+          'target_tenant': _targetTenant,
+          'bedrooms': int.tryParse(_bedroomsController.text) ?? 1,
+          'bathrooms': int.tryParse(_bathroomsController.text) ?? 1,
+          'has_climatisation': _hasClimatisation,
+          'has_chauffage_central': _hasChauffageCentral,
+          'has_wifi': _hasWifi,
+          'has_elevator': _hasElevator,
+          'is_furnished': _isFurnished,
+          'surface_m2': _surfaceController.text.trim().isEmpty ? null : int.tryParse(_surfaceController.text),
+          'city': _selectedCity,
+          'delegation': _selectedDelegation,
+          'latitude': _selectedLocation!.latitude,
+          'longitude': _selectedLocation!.longitude,
+        });
+        _createdListingId = listing['id'];
+      }
+
+      if (_selectedImages.isNotEmpty) {
+        await ApiService.uploadListingImages(_createdListingId!, _selectedImages);
+      }
 
       if (mounted) Navigator.pop(context, true);
     } on NotLoggedInException catch (e) {
@@ -312,6 +348,53 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 FilterChip(label: const Text('Elevator'), selected: _hasElevator, onSelected: (v) => setState(() => _hasElevator = v)),
                 FilterChip(label: const Text('Furnished'), selected: _isFurnished, onSelected: (v) => setState(() => _isFurnished = v)),
               ],
+            ),
+            const SizedBox(height: 20),
+            const Text('Photos (optional)', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 90,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (var i = 0; i < _selectedImageBytes.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(_selectedImageBytes[i], width: 90, height: 90, fit: BoxFit.cover),
+                          ),
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: GestureDetector(
+                              onTap: () => _removeImage(i),
+                              child: const CircleAvatar(
+                                radius: 10,
+                                backgroundColor: Colors.black54,
+                                child: Icon(Icons.close, size: 14, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  InkWell(
+                    onTap: _pickImages,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.add_a_photo_outlined, color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
             Text(
