@@ -126,3 +126,56 @@ export const getListingById = async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve listing details.' });
   }
 };
+
+// Create a listing owned by the authenticated user. owner_id always comes
+// from the JWT, never the request body, so a user can't attribute a listing
+// to someone else.
+export const createListing = async (req, res) => {
+  try {
+    const {
+      title, description, price_tnd, deposit_tnd,
+      property_type, target_tenant, bedrooms, bathrooms,
+      has_climatisation, has_chauffage_central, has_wifi,
+      has_elevator, is_furnished, surface_m2, city, delegation, address_text,
+      latitude, longitude,
+    } = req.body;
+
+    const sql = `
+      INSERT INTO listings (
+        owner_id, title, description, price_tnd, deposit_tnd,
+        property_type, target_tenant, bedrooms, bathrooms,
+        has_climatisation, has_chauffage_central, has_wifi,
+        has_elevator, is_furnished, surface_m2, city, delegation, address_text,
+        location, status
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9,
+        $10, $11, $12, $13, $14, $15, $16, $17, $18,
+        ST_SetSRID(ST_MakePoint($19, $20), 4326)::geography, 'ACTIVE'
+      ) RETURNING
+        id, title, description, price_tnd, deposit_tnd, property_type, target_tenant,
+        bedrooms, bathrooms, has_climatisation, has_chauffage_central, has_wifi,
+        has_elevator, is_furnished, surface_m2, city, delegation, address_text,
+        ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude,
+        status, created_at;
+    `;
+
+    // Nullish coalescing, not ||: an explicit 0 (e.g. a studio with zero
+    // separate bedrooms) is a valid value and must not be overwritten by
+    // the default the way `0 || 1` would silently do.
+    const values = [
+      req.user.id, title, description ?? null, price_tnd, deposit_tnd ?? 0,
+      property_type, target_tenant ?? 'ANY', bedrooms ?? 1, bathrooms ?? 1,
+      has_climatisation ?? false, has_chauffage_central ?? false, has_wifi ?? false,
+      has_elevator ?? false, is_furnished ?? false, surface_m2 ?? null, city, delegation, address_text ?? null,
+      longitude, latitude,
+    ];
+
+    const result = await query(sql, values);
+    res.status(201).json({ message: 'Listing created successfully!', listing: result.rows[0] });
+
+  } catch (error) {
+    console.error('Create listing error:', error);
+    res.status(500).json({ error: 'Failed to create listing.' });
+  }
+};

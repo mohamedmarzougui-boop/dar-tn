@@ -131,6 +131,30 @@ class ApiService {
       throw Exception(_extractErrorMessage(response.body) ?? 'Failed to unlock contact');
     }
   }
+
+  // --- CREATE LISTING ---
+
+  static Future<Map<String, dynamic>> createListing(Map<String, dynamic> listingData) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) {
+      throw NotLoggedInException();
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/listings'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode(listingData),
+    );
+
+    if (response.statusCode == 201) {
+      return json.decode(response.body)['listing'];
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Failed to create listing');
+    }
+  }
 }
 
 // Thrown by unlockContact when there's no stored token, so the caller can

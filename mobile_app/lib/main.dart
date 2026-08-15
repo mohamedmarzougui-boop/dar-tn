@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'api_service.dart';
 import 'auth_screens.dart';
+import 'create_listing_screen.dart';
 
 void main() {
   runApp(const DarTnApp());
@@ -69,6 +70,18 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _logout() async {
     await ApiService.logout();
     setState(() => _currentUser = null);
+  }
+
+  Future<void> _openCreateListing() async {
+    if (_currentUser == null) {
+      await _openAuth();
+      if (!mounted || _currentUser == null) return; // user closed the login screen without logging in
+    }
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateListingScreen()),
+    );
+    if (created == true) _loadListings();
   }
 
   void _showListingModal(String listingId) {
@@ -398,6 +411,13 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ],
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreateListing,
+        backgroundColor: const Color(0xFF0D9488),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_home),
+        label: const Text('List a place'),
+      ),
     );
   }
 }
