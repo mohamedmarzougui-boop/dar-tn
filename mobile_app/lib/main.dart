@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'api_service.dart';
@@ -96,6 +97,7 @@ class _MapScreenState extends State<MapScreen> {
         Map<String, dynamic>? unlockedContact;
         String? errorMessage;
         bool showLoginPrompt = false;
+        final imageScrollController = ScrollController();
 
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
@@ -118,6 +120,7 @@ class _MapScreenState extends State<MapScreen> {
 
                 final listing = snapshot.data!['listing'];
                 final aiValuation = snapshot.data!['ai_valuation'];
+                final images = (listing['images'] as List?)?.cast<String>() ?? [];
 
                 return Padding(
                   padding: const EdgeInsets.all(20.0),
@@ -125,6 +128,65 @@ class _MapScreenState extends State<MapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (images.isNotEmpty) ...[
+                        SizedBox(
+                          height: 180,
+                          // Two separate desktop-web gotchas here: a plain
+                          // ListView doesn't scroll on mouse-wheel unless the
+                          // axis is horizontal AND the wheel's vertical delta
+                          // is manually applied (Listener below), and mouse
+                          // click-drag needs to be explicitly allowed via
+                          // ScrollConfiguration - Flutter's default only
+                          // enables drag-to-scroll for touch/stylus.
+                          child: Listener(
+                            onPointerSignal: (event) {
+                              if (event is PointerScrollEvent && imageScrollController.hasClients) {
+                                imageScrollController.jumpTo(
+                                  (imageScrollController.offset + event.scrollDelta.dy)
+                                      .clamp(0.0, imageScrollController.position.maxScrollExtent),
+                                );
+                              }
+                            },
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context).copyWith(
+                                dragDevices: {
+                                  PointerDeviceKind.touch,
+                                  PointerDeviceKind.mouse,
+                                  PointerDeviceKind.trackpad,
+                                },
+                              ),
+                              child: ListView.separated(
+                                controller: imageScrollController,
+                                scrollDirection: Axis.horizontal,
+                                itemCount: images.length,
+                                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                                itemBuilder: (context, i) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    images[i],
+                                    width: 240,
+                                    height: 180,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, progress) => progress == null
+                                        ? child
+                                        : Container(
+                                            width: 240,
+                                            color: Colors.grey.shade200,
+                                            child: const Center(child: CircularProgressIndicator()),
+                                          ),
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      width: 240,
+                                      color: Colors.grey.shade200,
+                                      child: const Center(child: Icon(Icons.image_not_supported, color: Colors.grey)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

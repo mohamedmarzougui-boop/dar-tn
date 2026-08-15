@@ -101,7 +101,12 @@ export const getListingById = async (req, res) => {
         ST_Y(l.location::geometry) AS latitude,
         ST_X(l.location::geometry) AS longitude,
         l.status, l.is_verified_by_agency, l.created_at,
-        u.full_name AS owner_name
+        u.full_name AS owner_name,
+        COALESCE(
+          (SELECT json_agg(li.id ORDER BY li.is_primary DESC, li.display_order ASC)
+           FROM listing_images li WHERE li.listing_id = l.id),
+          '[]'::json
+        ) AS image_ids
       FROM listings l
       LEFT JOIN users u ON l.owner_id = u.id
       WHERE l.id = $1;
@@ -114,6 +119,16 @@ export const getListingById = async (req, res) => {
     }
 
     const listing = result.rows[0];
+    // Images are proxied through our own API, not linked to the source CDN
+    // directly: Flutter web's default renderer needs CORS headers to load
+    // cross-origin image bytes, and cdn.tayara.tn doesn't send any - the
+    // image displays fine in a plain <img> tag or opened directly, but
+    // Image.network() fails silently. Proxying through an endpoint we
+    // control (and that already has CORS enabled) fixes that.
+    const imageIds = listing.image_ids;
+    delete listing.image_ids;
+    listing.images = imageIds.map((imageId) => `${req.protocol}://${req.get('host')}/api/images/${imageId}`);
+
     const aiValuation = await fetchAIEstimate(listing);
 
     res.json({
@@ -124,6 +139,40 @@ export const getListingById = async (req, res) => {
   } catch (error) {
     console.error('Get listing by id error:', error);
     res.status(500).json({ error: 'Failed to retrieve listing details.' });
+  }
+};
+
+// Streams an image by its listing_images id, never by a client-supplied URL -
+// accepting an arbitrary URL to fetch server-side would be an SSRF vector
+// (an attacker could point it at internal services). Looking it up by an id
+// we already stored ourselves means the client only ever picks from images
+// we already know are safe to fetch.
+export const getListingImage = async (req, res) => {
+  try {
+    const { imageId } = req.params;
+
+    const result = await query('SELECT image_url FROM listing_images WHERE id = $1', [imageId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found.' });
+    }
+
+    const upstream = await fetch(result.rows[0].image_url);
+    if (!upstream.ok) {
+      return res.status(502).json({ error: 'Failed to fetch image from source.' });
+    }
+
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    // helmet() defaults Cross-Origin-Resource-Policy to same-origin, which
+    // would block Flutter web (a different origin/port) from loading this
+    // even with CORS otherwise satisfied - CORP is a separate browser
+    // security layer from CORS. This endpoint's whole purpose is serving
+    // images cross-origin, so it needs an explicit override.
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (error) {
+    console.error('Get listing image error:', error);
+    res.status(502).json({ error: 'Failed to fetch image.' });
   }
 };
 
