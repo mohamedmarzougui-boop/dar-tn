@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import listingRoutes from './routes/listingRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import pointsRoutes from './routes/pointsRoutes.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.get('/api/health', (req, res) => {
 // Mounting API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/points', pointsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -107,4 +107,35 @@ class ApiService {
       throw Exception('Failed to load listing details');
     }
   }
+
+  // --- POINTS & UNLOCK ---
+
+  static Future<Map<String, dynamic>> unlockContact(String listingId) async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token == null) {
+      throw NotLoggedInException();
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/points/unlock'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: json.encode({'listing_id': listingId}),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception(_extractErrorMessage(response.body) ?? 'Failed to unlock contact');
+    }
+  }
+}
+
+// Thrown by unlockContact when there's no stored token, so the caller can
+// prompt a login instead of showing a generic server-error message.
+class NotLoggedInException implements Exception {
+  @override
+  String toString() => 'Please login to unlock owner contact details.';
 }

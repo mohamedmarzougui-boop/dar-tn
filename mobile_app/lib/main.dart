@@ -79,99 +79,233 @@ class _MapScreenState extends State<MapScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return FutureBuilder<Map<String, dynamic>>(
-          future: ApiService.fetchListingDetails(listingId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 250,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
+        bool isUnlocking = false;
+        Map<String, dynamic>? unlockedContact;
+        String? errorMessage;
+        bool showLoginPrompt = false;
 
-            if (snapshot.hasError || !snapshot.hasData) {
-              return const SizedBox(
-                height: 200,
-                child: Center(child: Text('Failed to load details.')),
-              );
-            }
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return FutureBuilder<Map<String, dynamic>>(
+              future: ApiService.fetchListingDetails(listingId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 250,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
 
-            final listing = snapshot.data!['listing'];
-            final aiValuation = snapshot.data!['ai_valuation'];
+                if (snapshot.hasError || !snapshot.hasData) {
+                  return const SizedBox(
+                    height: 200,
+                    child: Center(child: Text('Failed to load details.')),
+                  );
+                }
 
-            return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                final listing = snapshot.data!['listing'];
+                final aiValuation = snapshot.data!['ai_valuation'];
+
+                return Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Chip(
-                        label: Text(
-                          listing['property_type'] ?? 'PROPERTY',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        backgroundColor: Colors.teal.shade50,
-                      ),
-                      Text(
-                        '${listing['price_tnd']} TND / month',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0D9488),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    listing['title'] ?? '',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '📍 ${listing['city']}, ${listing['delegation']}',
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                  if (listing['owner_name'] != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Listed by ${listing['owner_name']}',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  if (aiValuation != null)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.teal.shade200),
-                      ),
-                      child: Row(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Icon(Icons.auto_awesome, color: Color(0xFF0D9488)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              aiValuation['badge_label'] ?? 'Price Valuation Available',
+                          Chip(
+                            label: Text(
+                              listing['property_type'] ?? 'PROPERTY',
                               style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
                               ),
+                            ),
+                            backgroundColor: Colors.teal.shade50,
+                          ),
+                          Text(
+                            '${listing['price_tnd']} TND / month',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0D9488),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(height: 10),
+                      Text(
+                        listing['title'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '📍 ${listing['city']}, ${listing['delegation']}',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                      if (listing['owner_name'] != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Listed by ${listing['owner_name']}',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      if (aiValuation != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.teal.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.auto_awesome,
+                                color: Color(0xFF0D9488),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  aiValuation['badge_label'] ??
+                                      'Price Valuation Available',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                      if (errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      if (showLoginPrompt)
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openAuth();
+                            },
+                            child: const Text('Login to unlock contact'),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          width: double.infinity,
+                          child: unlockedContact != null
+                              ? Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal.shade50,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFF0D9488),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.phone,
+                                        color: Color(0xFF0D9488),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        unlockedContact!['phone_number'] ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0D9488),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0D9488),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                  onPressed: isUnlocking
+                                      ? null
+                                      : () async {
+                                          setModalState(() {
+                                            isUnlocking = true;
+                                            errorMessage = null;
+                                          });
+                                          try {
+                                            final result =
+                                                await ApiService.unlockContact(
+                                                  listingId,
+                                                );
+                                            setModalState(() {
+                                              unlockedContact =
+                                                  result['contact'];
+                                              isUnlocking = false;
+                                            });
+                                            _loadCurrentUser();
+                                          } on NotLoggedInException {
+                                            setModalState(() {
+                                              showLoginPrompt = true;
+                                              isUnlocking = false;
+                                            });
+                                          } catch (e) {
+                                            setModalState(() {
+                                              errorMessage = e
+                                                  .toString()
+                                                  .replaceAll(
+                                                    'Exception: ',
+                                                    '',
+                                                  );
+                                              isUnlocking = false;
+                                            });
+                                          }
+                                        },
+                                  icon: isUnlocking
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.lock_open),
+                                  label: Text(
+                                    isUnlocking
+                                        ? 'Unlocking...'
+                                        : 'Unlock Owner Contact (5 Points)',
+                                  ),
+                                ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             );
           },
         );
@@ -196,7 +330,9 @@ class _MapScreenState extends State<MapScreen> {
               itemBuilder: (context) => [
                 PopupMenuItem(
                   enabled: false,
-                  child: Text('${_currentUser!['full_name']} · ${_currentUser!['points_balance']} pts'),
+                  child: Text(
+                    '${_currentUser!['full_name']} · ${_currentUser!['points_balance']} pts',
+                  ),
                 ),
                 const PopupMenuItem(value: 'logout', child: Text('Logout')),
               ],
@@ -207,10 +343,7 @@ class _MapScreenState extends State<MapScreen> {
               tooltip: 'Login',
               onPressed: _openAuth,
             ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadListings,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadListings),
         ],
       ),
       body: _isLoading
@@ -227,8 +360,12 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 MarkerLayer(
                   markers: _listings.map((item) {
-                    final lat = double.tryParse(item['latitude']?.toString() ?? '') ?? 36.8065;
-                    final lng = double.tryParse(item['longitude']?.toString() ?? '') ?? 10.1815;
+                    final lat =
+                        double.tryParse(item['latitude']?.toString() ?? '') ??
+                        36.8065;
+                    final lng =
+                        double.tryParse(item['longitude']?.toString() ?? '') ??
+                        10.1815;
 
                     return Marker(
                       point: LatLng(lat, lng),
